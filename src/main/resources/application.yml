@@ -1,0 +1,26 @@
+amazon:
+ access:
+  key: AKIA5SPZN7MF77YAWA6Z
+  password: Z7wm/6Z3UkYx+okLE8+Z0gJpG9FQjxryPnBFGfvZ
+ region: us-east-1
+ end-point:
+  url: dynamodb.us-east-1.amazonaws.com
+  
+security:
+  oauth2:
+    client:
+      scope: password
+      client-id: apppagpedidos 
+      client-secret: teste
+      
+spring:
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+  datasource:
+    url: jdbc:mysql://pagpedidos.ciguho1t9kw1.us-east-1.rds.amazonaws.com:3306/pagpedidos
+    username: root
+    password: pagpedidosadmin
+    driverClassName: com.mysql.cj.jdbc.Driver
+    

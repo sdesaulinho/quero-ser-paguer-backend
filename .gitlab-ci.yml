@@ -1,0 +1,60 @@
+image: docker:latest
+services:
+  - docker:dind
+stages:
+  - compile    
+  - deploy
+
+#Build do projeto apenas
+build-maven:
+  image: maven:3.6.1-jdk-8
+  stage: compile
+  only:
+    - master
+    - tags
+  script:
+    - mvn clean install
+    - 'cp target/$CI_PROJECT_NAME.jar $CI_PROJECT_NAME.jar'
+  artifacts:
+    expire_in: 5 mins
+    paths:
+      - '$CI_PROJECT_NAME.jar'   
+      
+#Gerar imagem e subir para AWS
+deploy_aws:
+    image: docker:latest
+    
+    services:
+    - docker:dind
+    stage: deploy
+    
+    only:
+        - master
+        - tags
+    script:
+      #Gerar imagem
+      - 'ls -l $CI_PROJECT_NAME.jar'
+      - 'docker build -t $CI_PROJECT_NAME:$CI_COMMIT_TAG --build-arg JAR_NAME=$CI_PROJECT_NAME .'
+      #Instalar aws cli
+      - 'apk update'
+      - 'apk -Uuv add groff less python py-pip'
+      - 'pip install awscli'
+      #Definir autenticacao no aws cli
+      - 'aws configure set aws_access_key_id $REGISTRY_USER'
+      - 'aws configure set aws_secret_access_key $REGISTRY_PASSWORD'
+      - 'aws configure set default.region $REGISTRY_REGION'
+      #Logar no aws ecr
+      - 'dockerLogin=`aws ecr get-login --region $REGISTRY_REGION --no-include-email`'
+      - 'eval $dockerLogin'
+      #Fazer upload da nova imagem para o aws ecr
+      - 'docker tag $CI_PROJECT_NAME:$CI_COMMIT_TAG $REGISTRY/$CI_PROJECT_NAME:$CI_COMMIT_TAG'
+      - 'docker push $REGISTRY/$CI_PROJECT_NAME:$CI_COMMIT_TAG'
+      #Substituir valores dentro da definicao da aws ecs task    
+      - 'sed -i "s/%PROJECT_NAME%/$CI_PROJECT_NAME/" aws_task_definition.json'
+      - 'sed -i "s/%TAG%/$CI_COMMIT_TAG/" aws_task_definition.json'
+      - 'sed -i "s/%REGISTRY%/$REGISTRY/" aws_task_definition.json'
+      - 'sed -i "s/%REGISTRY_REGION%/$REGISTRY_REGION/" aws_task_definition.json'
+      #Criar aws ecs task
+      - 'aws ecs register-task-definition --cli-input-json file://aws_task_definition.json'
+      #Atualizar aws ecs service
+      - 'aws ecs update-service --cluster pagpedidos --service $CI_PROJECT_NAME --task-definition $CI_PROJECT_NAME' 
